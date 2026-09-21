@@ -98,3 +98,71 @@ export function toggleTileSealing(tiles: WorldTile[], x: number, y: number): {
       : `Spatial Seal released at (${x},${y})! Spatial flow restored.`,
   };
 }
+
+export interface ExplorationEncounter {
+  type: 'SpiritStoneDeposit' | 'AncientMonument' | 'HerbPatch' | 'FengShuiBlessing';
+  title: string;
+  description: string;
+  rewardStones?: number;
+  rewardLawComprehension?: number;
+  rewardQi?: number;
+}
+
+export function triggerTileExplorationEncounter(tile: WorldTile, player: PlayerState): {
+  encounter: ExplorationEncounter | null;
+  updatedPlayer: PlayerState;
+  message: string;
+} {
+  // 30% chance to trigger an encounter on non-sealed tiles
+  if (tile.sealed || Math.random() > 0.3) {
+    return { encounter: null, updatedPlayer: player, message: '' };
+  }
+
+  const roll = Math.random();
+  const updated = { ...player };
+
+  if (roll < 0.35) {
+    const stones = 20 + tile.dangerLevel * 15;
+    updated.spiritStones += stones;
+    return {
+      encounter: {
+        type: 'SpiritStoneDeposit',
+        title: 'Uncovered Spirit Stone Vein',
+        description: `Discovered a exposed spirit stone vein in ${tile.name}! Found ${stones} Spirit Stones.`,
+        rewardStones: stones,
+      },
+      updatedPlayer: updated,
+      message: `Discovered ${stones} Spirit Stones at (${tile.x},${tile.y})!`,
+    };
+  } else if (roll < 0.70) {
+    const qiGain = 50 + tile.dangerLevel * 20;
+    updated.currentQi = Math.min(updated.maxQi, updated.currentQi + qiGain);
+    return {
+      encounter: {
+        type: 'HerbPatch',
+        title: 'Concentrated Qi Spring',
+        description: `Stumbled upon a natural Qi spring in ${tile.name}. Restored ${qiGain} Qi.`,
+        rewardQi: qiGain,
+      },
+      updatedPlayer: updated,
+      message: `Absorbed natural Qi spring at (${tile.x},${tile.y})! (+${qiGain} Qi)`,
+    };
+  } else {
+    const lawGain = 5;
+    const elem = tile.fengShuiRating === 'Heavenly blessed' ? 'Chaos' : 'Earth';
+    updated.unlockedLaws = {
+      ...updated.unlockedLaws,
+      [elem]: Math.min(100, (updated.unlockedLaws[elem] || 0) + lawGain),
+    };
+    return {
+      encounter: {
+        type: 'AncientMonument',
+        title: 'Ancient Dao Stele',
+        description: `Contemplated a weathered Dao Stele in ${tile.name}. Deepened ${elem} Law comprehension by ${lawGain}%.`,
+        rewardLawComprehension: lawGain,
+      },
+      updatedPlayer: updated,
+      message: `Gained +${lawGain}% ${elem} Law comprehension from ancient stele!`,
+    };
+  }
+}
