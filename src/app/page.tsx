@@ -20,6 +20,7 @@ import confetti from 'canvas-confetti';
 const STORAGE_KEY = 'cultivation_heavenly_dao_save_v1';
 
 export default function Home() {
+  const [hasMounted, setHasMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'map' | 'character' | 'social' | 'combat'>('map');
   const [notification, setNotification] = useState<string | null>(null);
 
@@ -81,11 +82,12 @@ export default function Home() {
 
   // Load save on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasMounted(true);
     const saved = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (parsed.player) setPlayer(parsed.player);
         if (parsed.worldTiles) setWorldTiles(parsed.worldTiles);
         if (parsed.inventory) setInventory(parsed.inventory);
@@ -266,6 +268,10 @@ export default function Home() {
     setTribulationState(null);
     setActiveTab('character');
   };
+
+  if (!hasMounted) {
+    return <div className="min-h-screen bg-slate-950 text-slate-400 flex items-center justify-center font-mono text-xs">Loading Heavenly Dao Engine...</div>;
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-500 selection:text-slate-950">
