@@ -311,6 +311,7 @@ export default function Home() {
             tiles={worldTiles}
             player={player}
             selectedTile={selectedTile}
+            gridDimension={Math.max(7, Math.max(...worldTiles.map(t => t.x)) + 1)}
             onSelectTile={setSelectedTile}
             onMovePlayer={handleMovePlayer}
             onToggleSeal={handleToggleSeal}
