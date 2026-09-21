@@ -20,7 +20,7 @@ export const INITIAL_SECTS: Sect[] = [
     description: 'A sanctuary dedicated to the Earth, Dragon, Phoenix, and Tiger Sovereign Laws.',
     minRealmRequired: 'Foundation Establishment',
     reputation: 0,
-    techniquesOffered: ['coiling_dragon_fist'],
+    techniquesOffered: ['coiling_dragon_fist', 'thunder_dragon_slash'],
     spiritDensity: 3.0,
   },
   {
@@ -70,7 +70,7 @@ export const INITIAL_NPCS: NPC[] = [
     role: 'Grand Elder',
     affinity: 0,
     personality: 'Wise',
-    teachableTechniqueIds: ['coiling_dragon_fist'],
+    teachableTechniqueIds: ['coiling_dragon_fist', 'thunder_dragon_slash'],
     dialogues: {
       greeting: 'Greetings fellow daoist. The Elemental Laws flow endlessly through heaven and earth.',
       highAffinity: 'Your understanding of the Earth Law rivals ancient sages!',
@@ -102,7 +102,6 @@ export const INITIAL_NPCS: NPC[] = [
   },
 ];
 
-// Initial 7x7 Grid map centered at (3,3)
 export function generateInitialWorldGrid(): WorldTile[] {
   const tiles: WorldTile[] = [];
   const size = 7;
@@ -182,7 +181,7 @@ export function generateInitialWorldGrid(): WorldTile[] {
         description,
         qiDensity,
         dangerLevel,
-        unlocked: distance <= 2, // Center tiles unlocked by default
+        unlocked: distance <= 2,
         discovered: distance <= 2,
         sealed: false,
         fengShuiRating,

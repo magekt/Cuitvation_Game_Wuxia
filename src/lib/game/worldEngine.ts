@@ -1,4 +1,4 @@
-import { WorldTile, PlayerState, RealmStage } from '@/types/game';
+import { WorldTile, PlayerState } from '@/types/game';
 import { NEXT_REALM_ORDER } from '@/constants/realms';
 
 export function updateFogOfWar(tiles: WorldTile[], playerPos: { x: number; y: number }, visionRadius: number): WorldTile[] {

@@ -174,3 +174,107 @@ export function unblockMeridian(player: PlayerState): {
     message: `Successfully unblocked Meridian #${player.meridiansUnblocked + 1}! Qi flow increased by 15%.`,
   };
 }
+
+export interface Recipe {
+  id: string;
+  name: string;
+  type: 'Alchemy' | 'Forging';
+  outputItem: import('@/types/game').Item;
+  requiredHerbName?: string;
+  requiredMaterialName?: string;
+  requiredQuantity: number;
+  requiredSkill: number;
+  baseSuccessRate: number; // e.g. 0.7 = 70%
+}
+
+export function craftItem(
+  player: PlayerState,
+  inventory: import('@/types/game').InventoryItem[],
+  recipe: Recipe
+): {
+  updatedPlayer: PlayerState;
+  updatedInventory: import('@/types/game').InventoryItem[];
+  success: boolean;
+  message: string;
+} {
+  const isAlchemy = recipe.type === 'Alchemy';
+  const skill = isAlchemy ? player.stats.alchemySkill : player.stats.forgingSkill;
+
+  if (skill < recipe.requiredSkill) {
+    return {
+      updatedPlayer: player,
+      updatedInventory: inventory,
+      success: false,
+      message: `Your ${isAlchemy ? 'Alchemy' : 'Forging'} skill (${skill}) is too low for ${recipe.name}. Requires skill ${recipe.requiredSkill}.`,
+    };
+  }
+
+  // Check ingredient requirement
+  const reqName = recipe.requiredHerbName || recipe.requiredMaterialName;
+  const ingredient = inventory.find((inv) => inv.item.name === reqName && inv.quantity >= recipe.requiredQuantity);
+
+  if (!ingredient) {
+    return {
+      updatedPlayer: player,
+      updatedInventory: inventory,
+      success: false,
+      message: `Missing ingredients! Requires ${recipe.requiredQuantity}x ${reqName}.`,
+    };
+  }
+
+  // Deduct ingredient
+  const nextInventory = inventory.map((inv) => {
+    if (inv.item.name === reqName) {
+      return { ...inv, quantity: inv.quantity - recipe.requiredQuantity };
+    }
+    return inv;
+  }).filter((inv) => inv.quantity > 0);
+
+  // Calculate success rate based on base rate + skill bonus + fate luck
+  const skillBonus = (skill - recipe.requiredSkill) * 0.02;
+  const luckBonus = (player.stats.fateLuck || 0) * 0.01;
+  const successChance = Math.min(0.95, recipe.baseSuccessRate + skillBonus + luckBonus);
+
+  const roll = Math.random();
+  const isSuccess = roll < successChance;
+
+  let skillIncrease = 1;
+  if (isSuccess) skillIncrease = 2;
+
+  const updatedPlayer: PlayerState = {
+    ...player,
+    stats: {
+      ...player.stats,
+      alchemySkill: isAlchemy ? player.stats.alchemySkill + skillIncrease : player.stats.alchemySkill,
+      forgingSkill: !isAlchemy ? player.stats.forgingSkill + skillIncrease : player.stats.forgingSkill,
+    },
+  };
+
+  if (!isSuccess) {
+    return {
+      updatedPlayer,
+      updatedInventory: nextInventory,
+      success: false,
+      message: `Crafting failed! The furnace overheated and ingredients turned to ash. (+${skillIncrease} Skill)`,
+    };
+  }
+
+  // Add output item to inventory
+  const existingOutput = nextInventory.find((inv) => inv.item.id === recipe.outputItem.id);
+  let finalInventory: import('@/types/game').InventoryItem[];
+
+  if (existingOutput) {
+    finalInventory = nextInventory.map((inv) =>
+      inv.item.id === recipe.outputItem.id ? { ...inv, quantity: inv.quantity + 1 } : inv
+    );
+  } else {
+    finalInventory = [...nextInventory, { item: recipe.outputItem, quantity: 1 }];
+  }
+
+  return {
+    updatedPlayer,
+    updatedInventory: finalInventory,
+    success: true,
+    message: `Crafting successful! Created 1x ${recipe.outputItem.name}. (+${skillIncrease} ${isAlchemy ? 'Alchemy' : 'Forging'} Skill)`,
+  };
+}

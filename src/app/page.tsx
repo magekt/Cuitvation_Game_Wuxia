@@ -14,7 +14,7 @@ import { CharacterScreen } from '@/components/character/CharacterScreen';
 import { SectAndNpcScreen } from '@/components/social/SectAndNpcScreen';
 import { CombatScreen } from '@/components/combat/CombatScreen';
 
-import { Compass, User, Users, Swords, Sparkles, RefreshCw, Save, Download, Flame } from 'lucide-react';
+import { Compass, User, Users, Swords, Save, } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 const STORAGE_KEY = 'cultivation_heavenly_dao_save_v1';
@@ -81,10 +81,11 @@ export default function Home() {
 
   // Load save on mount
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (parsed.player) setPlayer(parsed.player);
         if (parsed.worldTiles) setWorldTiles(parsed.worldTiles);
         if (parsed.inventory) setInventory(parsed.inventory);
@@ -331,7 +332,6 @@ export default function Home() {
             npcs={npcs}
             quests={quests}
             playerItems={inventory.map((i) => i.item)}
-            onAcceptQuest={() => {}}
             onClaimQuestReward={(qId) => {
               setQuests((prev) => prev.map((q) => (q.id === qId ? { ...q, isClaimed: true } : q)));
               setPlayer((prev) => ({ ...prev, spiritStones: prev.spiritStones + 200 }));
@@ -348,6 +348,7 @@ export default function Home() {
         {activeTab === 'combat' && (
           <CombatScreen
             player={player}
+            inventory={inventory}
             combatEnemy={combatEnemy}
             tribulationState={tribulationState}
             playerTechniques={ALL_TECHNIQUES}
@@ -371,7 +372,7 @@ export default function Home() {
             return (
               <button
                 key={nav.id}
-                onClick={() => setActiveTab(nav.id as any)}
+                onClick={() => setActiveTab(nav.id as "map" | "character" | "social" | "combat")}
                 className={`flex flex-col items-center gap-1 py-1 px-3 rounded-lg transition-all ${
                   isActive ? 'text-amber-400 font-bold scale-105' : 'text-slate-400 hover:text-slate-200'
                 }`}

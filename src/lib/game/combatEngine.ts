@@ -1,13 +1,12 @@
-import { CombatEntity, CombatLogEntry, PlayerState, Technique, TribulationState } from '@/types/game';
-import { CULTIVATION_REALMS } from '@/constants/realms';
+import { CombatEntity, CombatLogEntry, PlayerState, Technique, TribulationState, Item, RealmStage, ElementType } from '@/types/game';
 
 export function initCombatEntity(
   name: string,
-  realm: any,
+  realm: RealmStage,
   attack: number,
   defense: number,
   hp: number,
-  element: any = 'Metal'
+  element: ElementType = 'Metal'
 ): CombatEntity {
   return {
     name,
@@ -29,6 +28,8 @@ export function executeCombatTurn(
   playerEntity: CombatEntity,
   enemyEntity: CombatEntity,
   selectedTechnique: Technique | null,
+  actionType: 'attack' | 'defend' | 'item' | 'flee',
+  selectedItem: Item | null,
   turnNumber: number
 ): {
   updatedPlayerEntity: CombatEntity;
@@ -36,56 +37,125 @@ export function executeCombatTurn(
   logs: CombatLogEntry[];
   combatEnded: boolean;
   playerWon: boolean | null;
+  fled?: boolean;
 } {
   const logs: CombatLogEntry[] = [];
-  let pEntity = { ...playerEntity };
-  let eEntity = { ...enemyEntity };
+  const pEntity = { ...playerEntity };
+  const eEntity = { ...enemyEntity };
+  let isDefending = false;
 
-  // Player Attack
-  if (selectedTechnique && pEntity.qi >= selectedTechnique.qiCost) {
-    pEntity.qi -= selectedTechnique.qiCost;
-    let baseDamage = pEntity.attack * selectedTechnique.powerMultiplier;
-
-    if (selectedTechnique.effects.damage) {
-      baseDamage += selectedTechnique.effects.damage;
+  if (actionType === 'flee') {
+    const fleeChance = 0.5 + (pEntity.qi / pEntity.maxQi) * 0.3;
+    if (Math.random() < fleeChance) {
+      logs.push({
+        turn: turnNumber,
+        attackerName: player.name,
+        actionName: 'Flee',
+        damage: 0,
+        message: `💨 ${player.name} used a spatial escape talisman to flee from battle!`,
+        type: 'system',
+      });
+      return {
+        updatedPlayerEntity: pEntity,
+        updatedEnemyEntity: eEntity,
+        logs,
+        combatEnded: true,
+        playerWon: false,
+        fled: true,
+      };
+    } else {
+      logs.push({
+        turn: turnNumber,
+        attackerName: player.name,
+        actionName: 'Flee',
+        damage: 0,
+        message: `❌ ${player.name} attempted to flee, but ${eEntity.name} blocked the escape path!`,
+        type: 'system',
+      });
     }
-
-    const actualDamage = Math.max(10, Math.round(baseDamage - eEntity.defense * 0.4));
-    eEntity.hp = Math.max(0, eEntity.hp - actualDamage);
-
+  } else if (actionType === 'defend') {
+    isDefending = true;
+    pEntity.qi = Math.min(pEntity.maxQi, pEntity.qi + 30);
     logs.push({
       turn: turnNumber,
       attackerName: player.name,
-      actionName: selectedTechnique.name,
-      damage: actualDamage,
-      message: `${player.name} unleashed [${selectedTechnique.name}]! Dealt ${actualDamage} elemental damage to ${eEntity.name}.`,
+      actionName: 'Defensive Stance',
+      damage: 0,
+      message: `🛡️ ${player.name} assumed a turtle defense stance! Defense doubled for this turn and restored 30 Qi.`,
       type: 'skill',
     });
-
-    if (selectedTechnique.effects.healHp) {
-      const heal = selectedTechnique.effects.healHp;
+  } else if (actionType === 'item' && selectedItem) {
+    if (selectedItem.effects?.hpGain) {
+      const heal = selectedItem.effects.hpGain;
       pEntity.hp = Math.min(pEntity.maxHp, pEntity.hp + heal);
       logs.push({
         turn: turnNumber,
         attackerName: player.name,
-        actionName: selectedTechnique.name,
+        actionName: selectedItem.name,
         damage: 0,
-        message: `${player.name} restored ${heal} HP through divine sutra!`,
+        message: `🧪 ${player.name} consumed [${selectedItem.name}] and recovered ${heal} HP!`,
         type: 'heal',
       });
     }
+    if (selectedItem.effects?.qiGain) {
+      const qiGain = selectedItem.effects.qiGain;
+      pEntity.qi = Math.min(pEntity.maxQi, pEntity.qi + qiGain);
+      logs.push({
+        turn: turnNumber,
+        attackerName: player.name,
+        actionName: selectedItem.name,
+        damage: 0,
+        message: `✨ ${player.name} absorbed [${selectedItem.name}] and gained ${qiGain} Qi!`,
+        type: 'skill',
+      });
+    }
   } else {
-    // Normal basic attack
-    const actualDamage = Math.max(5, Math.round(pEntity.attack - eEntity.defense * 0.5));
-    eEntity.hp = Math.max(0, eEntity.hp - actualDamage);
-    logs.push({
-      turn: turnNumber,
-      attackerName: player.name,
-      actionName: 'Basic Qi Strike',
-      damage: actualDamage,
-      message: `${player.name} struck ${eEntity.name} with raw Qi energy for ${actualDamage} damage.`,
-      type: 'attack',
-    });
+    // Player Technique / Attack
+    if (selectedTechnique && pEntity.qi >= selectedTechnique.qiCost) {
+      pEntity.qi -= selectedTechnique.qiCost;
+      let baseDamage = pEntity.attack * selectedTechnique.powerMultiplier;
+
+      if (selectedTechnique.effects.damage) {
+        baseDamage += selectedTechnique.effects.damage;
+      }
+
+      const actualDamage = Math.max(10, Math.round(baseDamage - eEntity.defense * 0.4));
+      eEntity.hp = Math.max(0, eEntity.hp - actualDamage);
+
+      logs.push({
+        turn: turnNumber,
+        attackerName: player.name,
+        actionName: selectedTechnique.name,
+        damage: actualDamage,
+        message: `${player.name} unleashed [${selectedTechnique.name}]! Dealt ${actualDamage} elemental damage to ${eEntity.name}.`,
+        type: 'skill',
+      });
+
+      if (selectedTechnique.effects.healHp) {
+        const heal = selectedTechnique.effects.healHp;
+        pEntity.hp = Math.min(pEntity.maxHp, pEntity.hp + heal);
+        logs.push({
+          turn: turnNumber,
+          attackerName: player.name,
+          actionName: selectedTechnique.name,
+          damage: 0,
+          message: `${player.name} restored ${heal} HP through divine sutra!`,
+          type: 'heal',
+        });
+      }
+    } else {
+      // Basic strike
+      const actualDamage = Math.max(5, Math.round(pEntity.attack - eEntity.defense * 0.5));
+      eEntity.hp = Math.max(0, eEntity.hp - actualDamage);
+      logs.push({
+        turn: turnNumber,
+        attackerName: player.name,
+        actionName: 'Basic Qi Strike',
+        damage: actualDamage,
+        message: `${player.name} struck ${eEntity.name} with raw Qi energy for ${actualDamage} damage.`,
+        type: 'attack',
+      });
+    }
   }
 
   // Check if enemy defeated
@@ -107,8 +177,9 @@ export function executeCombatTurn(
     };
   }
 
-  // Enemy Attack
-  const enemyDamage = Math.max(8, Math.round(eEntity.attack - pEntity.defense * 0.5));
+  // Enemy Counter Attack
+  const effectiveDefense = isDefending ? pEntity.defense * 2.0 : pEntity.defense;
+  const enemyDamage = Math.max(8, Math.round(eEntity.attack - effectiveDefense * 0.5));
   pEntity.hp = Math.max(0, pEntity.hp - enemyDamage);
   logs.push({
     turn: turnNumber,
@@ -150,7 +221,7 @@ export function executeCombatTurn(
   };
 }
 
-export function startHeavenlyTribulation(targetRealm: any): TribulationState {
+export function startHeavenlyTribulation(targetRealm: RealmStage): TribulationState {
   const totalStrikes = 3;
   const powerMap: Record<string, number> = {
     'Foundation Establishment': 150,
