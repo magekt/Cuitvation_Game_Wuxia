@@ -5,7 +5,8 @@ export function calculateQiGain(player: PlayerState, tileQiDensity: number = 1.0
   const baseGain = 5;
   const realmMult = CULTIVATION_REALMS[player.realm].statMultiplier;
   const meridianBonus = 1 + player.meridiansUnblocked * 0.15;
-  return Math.round(baseGain * realmMult * tileQiDensity * meridianBonus);
+  const sectBonus = player.currentSectId ? 1.25 : 1.0; // 25% bonus when aligned with a Sect
+  return Math.round(baseGain * realmMult * tileQiDensity * meridianBonus * sectBonus);
 }
 
 export function canAttemptBreakthrough(player: PlayerState): {
@@ -33,7 +34,7 @@ export function canAttemptBreakthrough(player: PlayerState): {
       nextLevel: player.realmLevel + 1,
     };
   } else {
-    // Attempting major stage breakthrough
+    // Major stage breakthrough requires Sect / Faction approval or minimum contribution
     const currentIndex = NEXT_REALM_ORDER.indexOf(player.realm);
     if (currentIndex >= NEXT_REALM_ORDER.length - 1) {
       return {
@@ -44,6 +45,20 @@ export function canAttemptBreakthrough(player: PlayerState): {
     }
 
     const nextStage = NEXT_REALM_ORDER[currentIndex + 1];
+
+    // Gating rules:
+    // Core Formation+ requires Sect alignment or 100+ Contribution Points
+    if (['Core Formation', 'Nascent Soul', 'Spirit Severing', 'Dao Seeking', 'Immortal Ascension', 'Sovereign Lord'].includes(nextStage)) {
+      if (!player.currentSectId && player.sectContribution < 100) {
+        return {
+          canBreakthrough: false,
+          isNextStage: true,
+          nextStage,
+          reason: `Higher realm breakthrough to ${nextStage} is gated by World Factions! Join a Sect or earn 100+ Sect Contribution Points.`,
+        };
+      }
+    }
+
     return {
       canBreakthrough: true,
       isNextStage: true,
@@ -73,7 +88,6 @@ export function processBreakthrough(player: PlayerState): {
 
   if (check.isNextStage && check.nextStage) {
     const nextRealmInfo = CULTIVATION_REALMS[check.nextStage];
-    // Major breakthrough requires Tribulation check
     const tribulationTriggered = Math.random() < currentRealmInfo.tribulationChance;
 
     if (tribulationTriggered) {
@@ -81,11 +95,10 @@ export function processBreakthrough(player: PlayerState): {
         updatedPlayer: player,
         success: false,
         triggeredTribulation: true,
-        message: `A terrifying Heavenly Tribulation cloud gathers above! You must survive the Lightning Strikes to achieve ${check.nextStage}!`,
+        message: `A Heavenly Tribulation cloud gathers! You must survive the Lightning Strikes to achieve ${check.nextStage}!`,
       };
     }
 
-    // Direct success if no tribulation or tribulation already passed
     const newMaxQi = Math.round(nextRealmInfo.qiRequired * (1 + (check.nextLevel! - 1) * 0.3));
     const newStats = {
       ...player.stats,
@@ -108,10 +121,9 @@ export function processBreakthrough(player: PlayerState): {
       },
       success: true,
       triggeredTribulation: false,
-      message: `Breakthrough Successful! You have stepped into ${check.nextStage} Realm Layer 1!`,
+      message: `Breakthrough Successful! Advanced to ${check.nextStage} Layer 1.`,
     };
   } else {
-    // Minor level breakthrough (e.g., Layer 1 to Layer 2)
     const newLevel = check.nextLevel || player.realmLevel + 1;
     const newMaxQi = Math.round(currentRealmInfo.qiRequired * (1 + (newLevel - 1) * 0.3));
     const newStats = {
@@ -132,7 +144,7 @@ export function processBreakthrough(player: PlayerState): {
       },
       success: true,
       triggeredTribulation: false,
-      message: `Layer Breakthrough! You advanced to ${player.realm} Layer ${newLevel}!`,
+      message: `Layer Breakthrough! Advanced to ${player.realm} Layer ${newLevel}.`,
     };
   }
 }
@@ -184,7 +196,7 @@ export interface Recipe {
   requiredMaterialName?: string;
   requiredQuantity: number;
   requiredSkill: number;
-  baseSuccessRate: number; // e.g. 0.7 = 70%
+  baseSuccessRate: number;
 }
 
 export function craftItem(
@@ -209,7 +221,6 @@ export function craftItem(
     };
   }
 
-  // Check ingredient requirement
   const reqName = recipe.requiredHerbName || recipe.requiredMaterialName;
   const ingredient = inventory.find((inv) => inv.item.name === reqName && inv.quantity >= recipe.requiredQuantity);
 
@@ -222,7 +233,6 @@ export function craftItem(
     };
   }
 
-  // Deduct ingredient
   const nextInventory = inventory.map((inv) => {
     if (inv.item.name === reqName) {
       return { ...inv, quantity: inv.quantity - recipe.requiredQuantity };
@@ -230,7 +240,6 @@ export function craftItem(
     return inv;
   }).filter((inv) => inv.quantity > 0);
 
-  // Calculate success rate based on base rate + skill bonus + fate luck
   const skillBonus = (skill - recipe.requiredSkill) * 0.02;
   const luckBonus = (player.stats.fateLuck || 0) * 0.01;
   const successChance = Math.min(0.95, recipe.baseSuccessRate + skillBonus + luckBonus);
@@ -255,11 +264,10 @@ export function craftItem(
       updatedPlayer,
       updatedInventory: nextInventory,
       success: false,
-      message: `Crafting failed! The furnace overheated and ingredients turned to ash. (+${skillIncrease} Skill)`,
+      message: `Crafting failed! Ingredients destroyed. (+${skillIncrease} Skill)`,
     };
   }
 
-  // Add output item to inventory
   const existingOutput = nextInventory.find((inv) => inv.item.id === recipe.outputItem.id);
   let finalInventory: import('@/types/game').InventoryItem[];
 
