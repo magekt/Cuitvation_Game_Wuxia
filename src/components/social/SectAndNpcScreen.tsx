@@ -2,48 +2,48 @@
 
 import React, { useState } from 'react';
 import { NPC, Quest, Sect, PlayerState, Item } from '@/types/game';
-import { Users, Shield, Scroll, Gift, Swords, BookOpen, CheckCircle, Award } from 'lucide-react';
+import { Users, Scroll, Shield, Swords, Gift, BookOpen, Award, CheckCircle } from 'lucide-react';
 
 interface SectAndNpcScreenProps {
   player: PlayerState;
-  sects: Sect[];
   npcs: NPC[];
+  sects: Sect[];
   quests: Quest[];
   playerItems: Item[];
-  onAcceptQuest: (questId: string) => void;
-  onClaimQuestReward: (questId: string) => void;
-  onGiftNpc: (npcId: string, item: Item) => void;
   onSparNpc: (npc: NPC) => void;
+  onGiftNpc: (npcId: string, item: Item) => void;
   onLearnTechniqueFromNpc: (npc: NPC, techniqueId: string) => void;
+  onClaimQuestReward: (questId: string) => void;
 }
 
 export const SectAndNpcScreen: React.FC<SectAndNpcScreenProps> = ({
   player,
-  sects,
   npcs,
+  sects,
   quests,
   playerItems,
-  onClaimQuestReward,
-  onGiftNpc,
   onSparNpc,
+  onGiftNpc,
   onLearnTechniqueFromNpc,
+  onClaimQuestReward,
 }) => {
-  const [activeTab, setActiveTab] = useState<'sects' | 'npcs' | 'questboard'>('npcs');
+  const [activeTab, setActiveTab] = useState<'npcs' | 'questboard' | 'sects'>('npcs');
   const [selectedNpc, setSelectedNpc] = useState<NPC | null>(npcs[0] || null);
 
   const getAffinityBadge = (affinity: number) => {
-    if (affinity >= 50) return { label: 'Sworn Ally / Dao Companion', color: 'text-pink-400 bg-pink-950/80 border-pink-700/50' };
-    if (affinity >= 20) return { label: 'Friendly', color: 'text-emerald-400 bg-emerald-950/80 border-emerald-700/50' };
-    if (affinity <= -20) return { label: 'Rival / Nemesis', color: 'text-red-400 bg-red-950/80 border-red-700/50' };
-    return { label: 'Neutral Acquaintance', color: 'text-slate-400 bg-slate-800 border-slate-700' };
+    if (affinity >= 50) return { label: 'Sworn Ally', color: 'text-emerald-400 bg-emerald-950 border-emerald-800' };
+    if (affinity >= 10) return { label: 'Friendly', color: 'text-cyan-400 bg-cyan-950 border-cyan-800' };
+    if (affinity <= -50) return { label: 'Mortal Enemy', color: 'text-red-400 bg-red-950 border-red-800' };
+    if (affinity <= -10) return { label: 'Hostile', color: 'text-amber-400 bg-amber-950 border-amber-800' };
+    return { label: 'Neutral', color: 'text-slate-400 bg-slate-900 border-slate-800' };
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-      {/* Header Tabs */}
-      <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-1">
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b border-slate-800 pb-2">
         {[
-          { id: 'npcs', label: 'Persistent Cultivators & Allies', icon: Users },
+          { id: 'npcs', label: 'Roving Cultivators & Elders', icon: Users },
           { id: 'questboard', label: 'Sect Quest Board', icon: Scroll },
           { id: 'sects', label: 'World Sects & Factions', icon: Shield },
         ].map((tab) => {
@@ -52,44 +52,43 @@ export const SectAndNpcScreen: React.FC<SectAndNpcScreenProps> = ({
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-semibold text-sm transition-all whitespace-nowrap ${
+              onClick={() => setActiveTab(tab.id as "npcs" | "questboard" | "sects")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
                 isActive
-                  ? 'bg-slate-900 border-t-2 border-amber-400 text-amber-400 shadow-md'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
+                  ? 'bg-amber-600 text-slate-950 shadow-lg shadow-amber-950/40'
+                  : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 border border-slate-800'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              {tab.label}
+              <Icon className="w-4 h-4" /> {tab.label}
             </button>
           );
         })}
       </div>
 
-      {/* Tab 1: Persistent NPCs & Social Interactions */}
+      {/* Tab 1: NPCs */}
       {activeTab === 'npcs' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* NPC List */}
-          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 shadow-xl space-y-3">
-            <h3 className="font-bold text-slate-200 text-sm flex items-center gap-2 border-b border-slate-800 pb-2">
-              <Users className="w-4 h-4 text-amber-400" /> Persistent Cultivators ({npcs.length})
+          {/* NPC List Sidebar */}
+          <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 px-2">
+              Cultivators Nearby ({npcs.length})
             </h3>
             <div className="space-y-2">
               {npcs.map((npc) => {
-                const isSelected = selectedNpc?.id === npc.id;
                 const badge = getAffinityBadge(npc.affinity);
+                const isSelected = selectedNpc?.id === npc.id;
                 return (
                   <button
                     key={npc.id}
                     onClick={() => setSelectedNpc(npc)}
-                    className={`w-full p-3 rounded-lg border text-left flex items-center justify-between transition-all ${
+                    className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between ${
                       isSelected
-                        ? 'bg-amber-950/60 border-amber-400 text-amber-200 shadow-md'
-                        : 'bg-slate-950/60 border-slate-800 text-slate-300 hover:bg-slate-800/60'
+                        ? 'bg-slate-800 border-amber-500/80 text-white shadow-md'
+                        : 'bg-slate-950/60 border-slate-800/80 text-slate-300 hover:bg-slate-900'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">{npc.avatar}</span>
+                      <span className="text-2xl">{npc.avatar}</span>
                       <div>
                         <h4 className="font-bold text-sm text-slate-100">{npc.name}</h4>
                         <p className="text-[11px] text-slate-400">
@@ -134,7 +133,7 @@ export const SectAndNpcScreen: React.FC<SectAndNpcScreenProps> = ({
 
                 {/* Dialogue Box */}
                 <div className="my-4 p-4 bg-slate-950 rounded-lg border border-slate-800 text-slate-300 text-xs italic leading-relaxed">
-                  "{selectedNpc.affinity >= 20 ? selectedNpc.dialogues.highAffinity : selectedNpc.dialogues.greeting}"
+                  &quot;{selectedNpc.affinity >= 20 ? selectedNpc.dialogues.highAffinity : selectedNpc.dialogues.greeting}&quot;
                 </div>
 
                 {/* Actions Grid */}

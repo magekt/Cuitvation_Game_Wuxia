@@ -1,120 +1,165 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PlayerState, Item, Equipment, ElementType } from '@/types/game';
+import { PlayerState, InventoryItem, Equipment, Item } from '@/types/game';
 import { CULTIVATION_REALMS } from '@/constants/realms';
-import { Sparkles, Shield, Flame, Zap, Award, BookOpen, Layers, Heart, Activity } from 'lucide-react';
+import { CRAFTING_RECIPES } from '@/constants/recipes';
+import { craftItem, Recipe } from '@/lib/game/cultivationEngine';
+import { Sparkles, Shield, Swords, Heart, Zap, Layers, Activity, Flame, Info } from 'lucide-react';
 
 interface CharacterScreenProps {
   player: PlayerState;
+  inventory: InventoryItem[];
   equipment: Equipment;
-  inventory: { item: Item; quantity: number }[];
   onCultitateQi: () => void;
   onAttemptBreakthrough: () => void;
   onUnblockMeridian: () => void;
   onEquipItem: (item: Item) => void;
-  onUnequipItem: (slot: keyof Equipment) => void;
+  onUnequipItem: (slot: 'weapon' | 'armor' | 'artifact') => void;
   onUseItem: (item: Item) => void;
+  onUpdatePlayerAndInventory?: (updatedPlayer: PlayerState, updatedInventory: InventoryItem[], msg: string) => void;
 }
 
 export const CharacterScreen: React.FC<CharacterScreenProps> = ({
   player,
-  equipment,
   inventory,
+  equipment,
   onCultitateQi,
   onAttemptBreakthrough,
   onUnblockMeridian,
   onEquipItem,
   onUnequipItem,
   onUseItem,
+  onUpdatePlayerAndInventory,
 }) => {
-  const [activeTab, setActiveTab] = useState<'realm' | 'meridians' | 'laws' | 'equipment' | 'inventory'>('realm');
+  const [activeTab, setActiveTab] = useState<'realm' | 'meridians' | 'crafting' | 'laws' | 'equipment' | 'inventory'>('realm');
+  const [craftingType, setCraftingType] = useState<'Alchemy' | 'Forging'>('Alchemy');
+  const [showStatsModal, setShowStatsModal] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<Item | null>(null);
 
-  const realmInfo = CULTIVATION_REALMS[player.realm];
+  const currentRealmInfo = CULTIVATION_REALMS[player.realm];
   const qiPercent = Math.min(100, Math.round((player.currentQi / player.maxQi) * 100));
 
+  const handleCraft = (recipe: Recipe) => {
+    const result = craftItem(player, inventory, recipe);
+    if (onUpdatePlayerAndInventory) {
+      onUpdatePlayerAndInventory(result.updatedPlayer, result.updatedInventory, result.message);
+    }
+  };
+
+  // Helper calculation for equipment bonus breakdown
+  const getEquipmentBonus = () => {
+    let attack = 0;
+    let defense = 0;
+    let maxHp = 0;
+    let comp = 0;
+    Object.values(equipment).forEach((item) => {
+      if (item?.effects?.statBoost) {
+        attack += item.effects.statBoost.attack || 0;
+        defense += item.effects.statBoost.defense || 0;
+        maxHp += item.effects.statBoost.maxHp || 0;
+        comp += item.effects.statBoost.comprehension || 0;
+      }
+    });
+    return { attack, defense, maxHp, comp };
+  };
+
+  const eqBonus = getEquipmentBonus();
+
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 space-y-6">
-      {/* Top Banner Overview */}
-      <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl backdrop-blur-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-600 via-amber-400 to-yellow-200 flex items-center justify-center text-3xl shadow-lg shadow-amber-500/20">
-            🧙‍♂️
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold text-slate-100">{player.name}</h1>
-              <span className="px-2 py-0.5 rounded text-xs bg-amber-500/20 border border-amber-500/50 text-amber-300 font-semibold">
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Character Profile Header Banner */}
+      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 rounded-2xl border border-slate-700/60 shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative z-10">
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-black text-slate-100 tracking-wide">{player.name}</h2>
+              <span className="px-3 py-1 bg-amber-500/20 text-amber-300 text-xs font-bold rounded-full border border-amber-500/30">
                 {player.title}
               </span>
             </div>
-            <p className="text-sm text-cyan-400 font-semibold mt-0.5">
-              {player.realm} — Layer {player.realmLevel} / {realmInfo.maxLevel}
+            <p className="text-sm text-cyan-400 font-semibold flex items-center gap-2">
+              <span>{player.realm} Realm</span>
+              <span className="text-slate-500">•</span>
+              <span>Layer {player.realmLevel} / {currentRealmInfo.maxLevel}</span>
             </p>
           </div>
+
+          <button
+            onClick={() => setShowStatsModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-600 shadow-md transition-all"
+          >
+            <Info className="w-4 h-4 text-cyan-400" /> Stats Breakdown
+          </button>
         </div>
 
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full md:w-auto bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-          <div className="text-center px-2">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Health</span>
-            <span className="text-sm font-bold text-red-400 flex items-center justify-center gap-1">
-              <Heart className="w-3.5 h-3.5 fill-red-400" />
-              {player.stats.hp} / {player.stats.maxHp}
-            </span>
+        {/* Core Stats Overview Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+          <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 flex items-center gap-3">
+            <Heart className="w-6 h-6 text-red-400" />
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-bold">Health Points</p>
+              <p className="text-sm font-extrabold text-slate-200">{player.stats.hp} / {player.stats.maxHp}</p>
+            </div>
           </div>
-          <div className="text-center px-2">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Attack Power</span>
-            <span className="text-sm font-bold text-amber-400 flex items-center justify-center gap-1">
-              <Flame className="w-3.5 h-3.5" />
-              {player.stats.attack}
-            </span>
+
+          <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 flex items-center gap-3">
+            <Swords className="w-6 h-6 text-amber-400" />
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-bold">Attack Power</p>
+              <p className="text-sm font-extrabold text-slate-200">{player.stats.attack}</p>
+            </div>
           </div>
-          <div className="text-center px-2">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Defense</span>
-            <span className="text-sm font-bold text-blue-400 flex items-center justify-center gap-1">
-              <Shield className="w-3.5 h-3.5" />
-              {player.stats.defense}
-            </span>
+
+          <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 flex items-center gap-3">
+            <Shield className="w-6 h-6 text-blue-400" />
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-bold">Defense Shield</p>
+              <p className="text-sm font-extrabold text-slate-200">{player.stats.defense}</p>
+            </div>
           </div>
-          <div className="text-center px-2">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">Spirit Stones</span>
-            <span className="text-sm font-bold text-yellow-300 flex items-center justify-center gap-1">
-              💎 {player.spiritStones}
-            </span>
+
+          <div className="bg-slate-950/70 p-3 rounded-xl border border-slate-800 flex items-center gap-3">
+            <Zap className="w-6 h-6 text-cyan-400" />
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase font-bold">Spirit Stones</p>
+              <p className="text-sm font-extrabold text-cyan-300">{player.spiritStones}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Tabs Header */}
-      <div className="flex border-b border-slate-800 gap-2 overflow-x-auto pb-1">
+      {/* Navigation Sub-Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-800 pb-2">
         {[
-          { id: 'realm', label: 'Cultivation & Qi', icon: Sparkles },
+          { id: 'realm', label: 'Cultivation & Breakthrough', icon: Sparkles },
+          { id: 'crafting', label: 'Alchemy & Forging', icon: Flame },
           { id: 'meridians', label: '12 Meridians', icon: Activity },
-          { id: 'laws', label: 'Laws & Demon Hexes', icon: Zap },
-          { id: 'equipment', label: 'Artifacts & Gear', icon: Award },
-          { id: 'inventory', label: 'Inventory & Pills', icon: BookOpen },
+          { id: 'laws', label: 'Laws & Hexes', icon: Zap },
+          { id: 'equipment', label: 'Equipped Treasures', icon: Shield },
+          { id: 'inventory', label: 'Spatial Ring', icon: Layers },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg font-semibold text-sm transition-all whitespace-nowrap ${
+              onClick={() => setActiveTab(tab.id as "realm" | "meridians" | "crafting" | "laws" | "equipment" | "inventory")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
                 isActive
-                  ? 'bg-slate-900 border-t-2 border-amber-400 text-amber-400 shadow-md'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
+                  ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-900/40'
+                  : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border border-slate-800'
               }`}
             >
-              <Icon className="w-4 h-4" />
-              {tab.label}
+              <Icon className="w-4 h-4" /> {tab.label}
             </button>
           );
         })}
       </div>
 
-      {/* Tab Content 1: Cultivation & Breakthrough */}
+      {/* Tab 1: Cultivation & Breakthrough */}
       {activeTab === 'realm' && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
           <div className="space-y-2">
@@ -156,7 +201,83 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
         </div>
       )}
 
-      {/* Tab Content 2: 12 Meridians */}
+      {/* Tab 2: Crafting (Alchemy & Forging) */}
+      {activeTab === 'crafting' && (
+        <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
+          <div className="flex justify-between items-center border-b border-slate-800 pb-4">
+            <div>
+              <h3 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Flame className="w-5 h-5 text-amber-500" /> Immortals Crafting Furnace
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Refine gathered herbs into powerful breakthrough pills or forge raw iron ores into lethal artifacts.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCraftingType('Alchemy')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  craftingType === 'Alchemy' ? 'bg-amber-600 text-slate-950' : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                Alchemy (Skill: {player.stats.alchemySkill})
+              </button>
+              <button
+                onClick={() => setCraftingType('Forging')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  craftingType === 'Forging' ? 'bg-cyan-600 text-white' : 'bg-slate-800 text-slate-400'
+                }`}
+              >
+                Forging (Skill: {player.stats.forgingSkill})
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {CRAFTING_RECIPES.filter((r) => r.type === craftingType).map((recipe) => {
+              const reqName = recipe.requiredHerbName || recipe.requiredMaterialName;
+              const hasIngredient = inventory.find((inv) => inv.item.name === reqName && inv.quantity >= recipe.requiredQuantity);
+
+              return (
+                <div key={recipe.id} className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-bold text-slate-200 text-sm">{recipe.name}</h4>
+                      <p className="text-xs text-slate-400">Target: {recipe.outputItem.name}</p>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded bg-slate-900 text-amber-400 border border-slate-800 font-mono font-bold">
+                      Req Skill: {recipe.requiredSkill}
+                    </span>
+                  </div>
+
+                  <div className="text-xs text-slate-300 space-y-1 bg-slate-900/60 p-2.5 rounded border border-slate-800/80">
+                    <p className="flex justify-between">
+                      <span className="text-slate-400">Required Ingredient:</span>
+                      <span className={hasIngredient ? 'text-green-400 font-bold' : 'text-red-400 font-bold'}>
+                        {recipe.requiredQuantity}x {reqName}
+                      </span>
+                    </p>
+                    <p className="flex justify-between">
+                      <span className="text-slate-400">Base Success Rate:</span>
+                      <span className="text-cyan-300">{Math.round(recipe.baseSuccessRate * 100)}%</span>
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => handleCraft(recipe)}
+                    className="w-full py-2 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-bold rounded-lg text-xs shadow transition-all"
+                  >
+                    Ignite Furnace & Craft
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 3: 12 Meridians */}
       {activeTab === 'meridians' && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
           <div>
@@ -200,7 +321,7 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
         </div>
       )}
 
-      {/* Tab Content 3: Laws & Demon Hexes */}
+      {/* Tab 4: Laws & Demon Hexes */}
       {activeTab === 'laws' && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
           <div>
@@ -229,7 +350,7 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
         </div>
       )}
 
-      {/* Tab Content 4: Equipment */}
+      {/* Tab 5: Equipment */}
       {activeTab === 'equipment' && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-6">
           <h3 className="text-lg font-bold text-slate-100">Equipped Spiritual Treasures</h3>
@@ -239,7 +360,7 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
               return (
                 <div
                   key={slot}
-                  className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between h-40"
+                  className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-col justify-between h-44 relative"
                 >
                   <div className="flex justify-between items-start">
                     <div>
@@ -268,7 +389,7 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
         </div>
       )}
 
-      {/* Tab Content 5: Inventory & Pills */}
+      {/* Tab 6: Inventory & Pills */}
       {activeTab === 'inventory' && (
         <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6 shadow-xl space-y-4">
           <h3 className="text-lg font-bold text-slate-100">Inventory Items ({inventory.length} Types)</h3>
@@ -277,7 +398,12 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {inventory.map(({ item, quantity }) => (
-                <div key={item.id} className="bg-slate-950 p-3.5 rounded-lg border border-slate-800 space-y-2">
+                <div
+                  key={item.id}
+                  className="bg-slate-950 p-3.5 rounded-lg border border-slate-800 space-y-2 relative"
+                  onMouseEnter={() => setHoveredItem(item)}
+                  onMouseLeave={() => setHoveredItem(null)}
+                >
                   <div className="flex justify-between items-start">
                     <div>
                       <h4 className="font-bold text-sm text-slate-200">{item.name}</h4>
@@ -312,6 +438,49 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Stats Breakdown Modal */}
+      {showStatsModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 space-y-4 text-slate-200 shadow-2xl">
+            <h3 className="text-xl font-black text-amber-400 border-b border-slate-800 pb-2">
+              Comprehensive Attributes Breakdown
+            </h3>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between border-b border-slate-800/60 pb-1">
+                <span>Base HP:</span>
+                <span className="font-bold">{player.stats.maxHp - eqBonus.maxHp} (Equip: +{eqBonus.maxHp})</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-800/60 pb-1">
+                <span>Attack Power:</span>
+                <span className="font-bold">{player.stats.attack - eqBonus.attack} (Equip: +{eqBonus.attack})</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-800/60 pb-1">
+                <span>Defense Shield:</span>
+                <span className="font-bold">{player.stats.defense - eqBonus.defense} (Equip: +{eqBonus.defense})</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-800/60 pb-1">
+                <span>Law Comprehension:</span>
+                <span className="font-bold">{player.stats.comprehension - eqBonus.comp}% (Equip: +{eqBonus.comp}%)</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-800/60 pb-1">
+                <span>Spiritual Perception:</span>
+                <span className="font-bold">{player.stats.spiritualPerception} Grid Radius</span>
+              </div>
+              <div className="flex justify-between border-b border-slate-800/60 pb-1">
+                <span>Alchemy / Forging Skill:</span>
+                <span className="font-bold">{player.stats.alchemySkill} / {player.stats.forgingSkill}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowStatsModal(false)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 font-bold rounded-xl text-xs text-white"
+            >
+              Close Breakdown
+            </button>
+          </div>
         </div>
       )}
     </div>
