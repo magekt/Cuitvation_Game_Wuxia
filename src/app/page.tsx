@@ -88,12 +88,16 @@ export default function Home() {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.player) setPlayer(parsed.player);
-        if (parsed.worldTiles) setWorldTiles(parsed.worldTiles);
-        if (parsed.inventory) setInventory(parsed.inventory);
-        if (parsed.equipment) setEquipment(parsed.equipment);
-        if (parsed.npcs) setNpcs(parsed.npcs);
-        if (parsed.quests) setQuests(parsed.quests);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.player && typeof parsed.player === 'object' && typeof parsed.player.name === 'string') {
+            setPlayer((prev) => ({ ...prev, ...parsed.player }));
+          }
+          if (Array.isArray(parsed.worldTiles)) setWorldTiles(parsed.worldTiles);
+          if (Array.isArray(parsed.inventory)) setInventory(parsed.inventory);
+          if (parsed.equipment && typeof parsed.equipment === 'object') setEquipment(parsed.equipment);
+          if (Array.isArray(parsed.npcs)) setNpcs(parsed.npcs);
+          if (Array.isArray(parsed.quests)) setQuests(parsed.quests);
+        }
       } catch (e) {
         console.error('Failed to load save file:', e);
       }
