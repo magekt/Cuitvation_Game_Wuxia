@@ -5,3 +5,6 @@ services:
     buildCommand: npm run build
     startCommand: npm start
     plan: free
+    envVars:
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=400

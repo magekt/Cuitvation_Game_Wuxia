@@ -1,28 +1,31 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CombatEntity, CombatLogEntry, PlayerState, Technique, TribulationState } from '@/types/game';
+import { CombatEntity, CombatLogEntry, PlayerState, Technique, TribulationState, InventoryItem, Item } from '@/types/game';
 import { executeCombatTurn, withstandTribulationStrike } from '@/lib/game/combatEngine';
-import { Swords, Shield, Zap, Sparkles, Heart, Activity } from 'lucide-react';
+import { Swords, Shield, Heart, Zap, FastForward, Pill } from 'lucide-react';
 
 interface CombatScreenProps {
   player: PlayerState;
+  inventory: InventoryItem[];
   combatEnemy: CombatEntity | null;
   tribulationState: TribulationState | null;
   playerTechniques: Technique[];
   onCombatFinish: (playerWon: boolean, remainingHp: number) => void;
   onTribulationFinish: (success: boolean) => void;
+  onConsumeCombatItem?: (item: Item) => void;
 }
 
 export const CombatScreen: React.FC<CombatScreenProps> = ({
   player,
+  inventory,
   combatEnemy,
   tribulationState,
   playerTechniques,
   onCombatFinish,
   onTribulationFinish,
+  onConsumeCombatItem,
 }) => {
-  // Local combat state
   const [playerCombatEntity, setPlayerCombatEntity] = useState<CombatEntity>({
     name: player.name,
     realm: player.realm,
@@ -41,13 +44,29 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
   const [tribulation, setTribulation] = useState<TribulationState | null>(tribulationState);
   const [combatLogs, setCombatLogs] = useState<CombatLogEntry[]>([]);
   const [turn, setTurn] = useState<number>(1);
-  const [selectedTechnique, setSelectedTechnique] = useState<Technique | null>(null);
+  const [showItemPicker, setShowItemPicker] = useState(false);
 
-  // Handle combat turn
-  const handleTurn = (tech: Technique | null) => {
+  const handleTurnAction = (
+    actionType: 'attack' | 'defend' | 'item' | 'flee',
+    tech: Technique | null = null,
+    item: Item | null = null
+  ) => {
     if (!enemy) return;
 
-    const result = executeCombatTurn(player, playerCombatEntity, enemy, tech, turn);
+    if (actionType === 'item' && item && onConsumeCombatItem) {
+      onConsumeCombatItem(item);
+    }
+
+    const result = executeCombatTurn(
+      player,
+      playerCombatEntity,
+      enemy,
+      tech,
+      actionType,
+      item,
+      turn
+    );
+
     setPlayerCombatEntity(result.updatedPlayerEntity);
     setEnemy(result.updatedEnemyEntity);
     setCombatLogs((prev) => [...prev, ...result.logs]);
@@ -60,11 +79,10 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
     }
   };
 
-  // Handle tribulation lightning strike
   const handleTribulationStrike = () => {
     if (!tribulation) return;
 
-    const result = withstandTribulationStrike(player, tribulation, 50); // 50 base defensive barrier
+    const result = withstandTribulationStrike(player, tribulation, 50);
     setTribulation(result.updatedTribulation);
 
     if (!result.updatedTribulation.active) {
@@ -74,11 +92,13 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
     }
   };
 
+  const usablePills = inventory.filter((inv) => inv.item.type === 'Pill' && inv.quantity > 0);
+
   return (
     <div className="w-full max-w-5xl mx-auto p-4 space-y-6">
       {/* Tribulation Mode */}
       {tribulation && (
-        <div className="bg-slate-900/90 border-2 border-amber-500/80 rounded-2xl p-6 shadow-2xl backdrop-blur-md space-y-6 text-center animate__animated animate__fadeIn">
+        <div className="bg-slate-900/90 border-2 border-amber-500/80 rounded-2xl p-6 shadow-2xl backdrop-blur-md space-y-6 text-center">
           <div className="space-y-2">
             <span className="text-4xl animate-bounce inline-block">⚡</span>
             <h2 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-300 to-red-400">
@@ -89,7 +109,6 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
             </p>
           </div>
 
-          {/* Strikes Counter */}
           <div className="flex justify-center gap-4 my-4">
             {Array.from({ length: tribulation.totalStrikes }).map((_, i) => {
               const strikeDone = i < tribulation.totalStrikes - tribulation.lightningStrikesRemaining;
@@ -164,9 +183,26 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
                   />
                 </div>
               </div>
+
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5 text-cyan-400" /> Qi
+                  </span>
+                  <span>
+                    {playerCombatEntity.qi} / {playerCombatEntity.maxQi}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-900 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-cyan-500 h-full transition-all duration-300"
+                    style={{ width: `${(playerCombatEntity.qi / playerCombatEntity.maxQi) * 100}%` }}
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* VS Divider / Enemy Side */}
+            {/* Enemy Side */}
             <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-3xl">🐉</span>
@@ -219,21 +255,71 @@ export const CombatScreen: React.FC<CombatScreenProps> = ({
             )}
           </div>
 
-          {/* Action / Technique Bar */}
+          {/* Core Tactical Actions */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Unleash Divine Ability</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="flex justify-between items-center">
+              <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tactical Action Commands</h4>
               <button
-                onClick={() => handleTurn(null)}
-                className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition-all border border-slate-700"
+                onClick={() => setShowItemPicker(!showItemPicker)}
+                className="text-xs px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded flex items-center gap-1"
               >
-                Basic Qi Palm Strike
+                <Pill className="w-3.5 h-3.5" /> Consume Pill In Combat
+              </button>
+            </div>
+
+            {/* Pill Selection Drawer */}
+            {showItemPicker && (
+              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex flex-wrap gap-2">
+                {usablePills.length === 0 ? (
+                  <p className="text-xs text-slate-500">No pills available in spatial ring.</p>
+                ) : (
+                  usablePills.map(({ item, quantity }) => (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        handleTurnAction('item', null, item);
+                        setShowItemPicker(false);
+                      }}
+                      className="px-3 py-1.5 bg-emerald-900/40 hover:bg-emerald-800/60 text-emerald-200 text-xs font-bold rounded-lg border border-emerald-700/50 flex items-center gap-2"
+                    >
+                      <span>{item.name}</span>
+                      <span className="text-[10px] bg-emerald-950 px-1 rounded">x{quantity}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <button
+                onClick={() => handleTurnAction('attack', null)}
+                className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl text-xs transition-all border border-slate-700 flex items-center justify-center gap-1.5"
+              >
+                <Swords className="w-4 h-4 text-amber-400" /> Basic Palm Strike
               </button>
 
+              <button
+                onClick={() => handleTurnAction('defend')}
+                className="py-3 px-4 bg-blue-900/60 hover:bg-blue-800/80 text-blue-200 font-bold rounded-xl text-xs transition-all border border-blue-700/60 flex items-center justify-center gap-1.5"
+              >
+                <Shield className="w-4 h-4 text-blue-400" /> Defend Stance
+              </button>
+
+              <button
+                onClick={() => handleTurnAction('flee')}
+                className="py-3 px-4 bg-red-900/40 hover:bg-red-800/60 text-red-300 font-bold rounded-xl text-xs transition-all border border-red-800/50 flex items-center justify-center gap-1.5"
+              >
+                <FastForward className="w-4 h-4 text-red-400" /> Attempt Escape
+              </button>
+            </div>
+
+            {/* Techniques */}
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">Unleash Divine Ability</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {playerTechniques.map((tech) => (
                 <button
                   key={tech.id}
-                  onClick={() => handleTurn(tech)}
+                  onClick={() => handleTurnAction('attack', tech)}
                   className="py-3 px-4 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold rounded-xl text-xs transition-all shadow-md flex items-center justify-between"
                 >
                   <span>{tech.name}</span>
