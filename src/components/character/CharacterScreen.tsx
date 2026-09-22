@@ -35,7 +35,6 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
   const [activeTab, setActiveTab] = useState<'realm' | 'meridians' | 'crafting' | 'laws' | 'equipment' | 'inventory'>('realm');
   const [craftingType, setCraftingType] = useState<'Alchemy' | 'Forging'>('Alchemy');
   const [showStatsModal, setShowStatsModal] = useState(false);
-  const [hoveredItem, setHoveredItem] = useState<Item | null>(null);
 
   const currentRealmInfo = CULTIVATION_REALMS[player.realm];
   const qiPercent = Math.min(100, Math.round((player.currentQi / player.maxQi) * 100));
@@ -401,8 +400,6 @@ export const CharacterScreen: React.FC<CharacterScreenProps> = ({
                 <div
                   key={item.id}
                   className="bg-slate-950 p-3.5 rounded-lg border border-slate-800 space-y-2 relative"
-                  onMouseEnter={() => setHoveredItem(item)}
-                  onMouseLeave={() => setHoveredItem(null)}
                 >
                   <div className="flex justify-between items-start">
                     <div>

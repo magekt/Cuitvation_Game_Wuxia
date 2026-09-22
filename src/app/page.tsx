@@ -62,7 +62,7 @@ export default function Home() {
   const [worldTiles, setWorldTiles] = useState<WorldTile[]>(() => generateInitialWorldGrid());
   const [selectedTile, setSelectedTile] = useState<WorldTile | null>(null);
   const [npcs, setNpcs] = useState<NPC[]>(INITIAL_NPCS);
-  const [sects, setSects] = useState<Sect[]>(INITIAL_SECTS);
+  const [sects] = useState<Sect[]>(INITIAL_SECTS);
   const [quests, setQuests] = useState<Quest[]>(() => generateSectQuests(INITIAL_NPCS, INITIAL_ITEMS));
 
   const [inventory, setInventory] = useState<{ item: Item; quantity: number }[]>([
@@ -345,7 +345,7 @@ export default function Home() {
             }}
             onGiftNpc={handleGiftNpc}
             onSparNpc={handleSparNpc}
-            onLearnTechniqueFromNpc={(npc, techId) => {
+            onLearnTechniqueFromNpc={(npc) => {
               showToast(`Learned new technique from ${npc.name}!`);
             }}
           />
@@ -379,11 +379,13 @@ export default function Home() {
               <button
                 key={nav.id}
                 onClick={() => setActiveTab(nav.id as "map" | "character" | "social" | "combat")}
-                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-lg transition-all ${
+                aria-label={nav.label}
+                aria-current={isActive ? 'page' : undefined}
+                className={`flex flex-col items-center gap-1 py-1 px-3 rounded-lg transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
                   isActive ? 'text-amber-400 font-bold scale-105' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-5 h-5" aria-hidden="true" />
                 <span className="text-[10px]">{nav.label}</span>
               </button>
             );

@@ -23,7 +23,6 @@ export const WorldGrid: React.FC<WorldGridProps> = ({
 }) => {
   // Determine grid bounds
   const maxX = Math.max(...tiles.map((t) => t.x));
-  const maxY = Math.max(...tiles.map((t) => t.y));
   const gridDimension = maxX + 1;
 
   const getTileBg = (tile: WorldTile, isPlayerHere: boolean) => {
@@ -117,7 +116,8 @@ export const WorldGrid: React.FC<WorldGridProps> = ({
               <button
                 key={`${tile.x}-${tile.y}`}
                 onClick={() => onSelectTile(tile)}
-                className={`aspect-square p-1 sm:p-2 rounded-lg border text-left flex flex-col justify-between transition-all duration-200 relative group overflow-hidden ${getTileBg(
+                aria-label={`Tile ${tile.x}, ${tile.y}: ${tile.unlocked ? tile.name : 'Unexplored'}${isPlayerHere ? ' (Player position)' : ''}`}
+                className={`aspect-square p-1 sm:p-2 rounded-lg border text-left flex flex-col justify-between transition-all duration-200 relative group overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${getTileBg(
                   tile,
                   isPlayerHere
                 )} ${isSelected ? 'ring-2 ring-cyan-400 scale-[1.03] z-10' : ''}`}
