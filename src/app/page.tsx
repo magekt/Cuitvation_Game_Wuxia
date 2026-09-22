@@ -62,7 +62,7 @@ export default function Home() {
   const [worldTiles, setWorldTiles] = useState<WorldTile[]>(() => generateInitialWorldGrid());
   const [selectedTile, setSelectedTile] = useState<WorldTile | null>(null);
   const [npcs, setNpcs] = useState<NPC[]>(INITIAL_NPCS);
-  const [sects, setSects] = useState<Sect[]>(INITIAL_SECTS);
+  const [sects] = useState<Sect[]>(INITIAL_SECTS);
   const [quests, setQuests] = useState<Quest[]>(() => generateSectQuests(INITIAL_NPCS, INITIAL_ITEMS));
 
   const [inventory, setInventory] = useState<{ item: Item; quantity: number }[]>([
@@ -345,7 +345,7 @@ export default function Home() {
             }}
             onGiftNpc={handleGiftNpc}
             onSparNpc={handleSparNpc}
-            onLearnTechniqueFromNpc={(npc, techId) => {
+            onLearnTechniqueFromNpc={(npc) => {
               showToast(`Learned new technique from ${npc.name}!`);
             }}
           />

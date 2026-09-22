@@ -13,6 +13,118 @@ interface WorldGridProps {
   onToggleSeal: (x: number, y: number) => void;
 }
 
+// Static helper methods moved outside component scope to avoid function recreation per render
+const getTileBg = (tile: WorldTile, isPlayerHere: boolean) => {
+  if (tile.sealed) {
+    return 'bg-purple-950/80 border-purple-500/60 text-purple-200 animate-pulse';
+  }
+  if (!tile.unlocked) {
+    return 'bg-slate-900 border-slate-800 opacity-60 text-slate-600';
+  }
+  if (isPlayerHere) {
+    return 'bg-amber-900/60 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400';
+  }
+
+  switch (tile.type) {
+    case 'Sect':
+      return 'bg-emerald-950/70 border-emerald-500/70 text-emerald-200 hover:bg-emerald-900/80';
+    case 'SpiritVein':
+      return 'bg-cyan-950/70 border-cyan-400/70 text-cyan-200 hover:bg-cyan-900/80';
+    case 'SecretRealm':
+      return 'bg-fuchsia-950/70 border-fuchsia-500/70 text-fuchsia-200 hover:bg-fuchsia-900/80';
+    case 'AuctionHouse':
+      return 'bg-amber-950/70 border-amber-500/70 text-amber-200 hover:bg-amber-900/80';
+    case 'AlchemistTower':
+      return 'bg-teal-950/70 border-teal-400/70 text-teal-200 hover:bg-teal-900/80';
+    case 'DemonForbiddenZone':
+      return 'bg-red-950/80 border-red-600/80 text-red-200 hover:bg-red-900/80';
+    default:
+      return 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700/80';
+  }
+};
+
+const getTileIcon = (type: WorldTile['type']) => {
+  switch (type) {
+    case 'Sect':
+      return '🏯';
+    case 'SpiritVein':
+      return '💎';
+    case 'SecretRealm':
+      return '🌀';
+    case 'AuctionHouse':
+      return '🏛️';
+    case 'AlchemistTower':
+      return '🧪';
+    case 'DemonForbiddenZone':
+      return '☠️';
+    case 'AncientRuins':
+      return '🏺';
+    default:
+      return '🌲';
+  }
+};
+
+interface WorldTileButtonProps {
+  tile: WorldTile;
+  isPlayerHere: boolean;
+  isSelected: boolean;
+  onSelectTile: (tile: WorldTile) => void;
+}
+
+// ⚡ Bolt: Memoized individual tile button component to prevent unnecessary re-renders of all grid tiles when selecting a single tile or moving player.
+const WorldTileButton: React.FC<WorldTileButtonProps> = React.memo(({
+  tile,
+  isPlayerHere,
+  isSelected,
+  onSelectTile,
+}) => {
+  return (
+    <button
+      onClick={() => onSelectTile(tile)}
+      className={`aspect-square p-1 sm:p-2 rounded-lg border text-left flex flex-col justify-between transition-all duration-200 relative group overflow-hidden ${getTileBg(
+        tile,
+        isPlayerHere
+      )} ${isSelected ? 'ring-2 ring-cyan-400 scale-[1.03] z-10' : ''}`}
+    >
+      {/* Top status bar */}
+      <div className="flex justify-between items-center w-full text-[10px] sm:text-xs font-mono">
+        <span className="text-slate-400">
+          {tile.x},{tile.y}
+        </span>
+        {tile.sealed && <Lock className="w-3 h-3 text-purple-400 animate-pulse" />}
+        {!tile.unlocked && <Eye className="w-3 h-3 text-slate-600" />}
+      </div>
+
+      {/* Center Tile Emoji / Icon */}
+      <div className="my-auto text-center">
+        <span className="text-2xl sm:text-3xl filter drop-shadow-md">
+          {tile.unlocked ? getTileIcon(tile.type) : '🌫️'}
+        </span>
+        <p className="text-[10px] sm:text-xs font-semibold truncate mt-1">
+          {tile.unlocked ? tile.name.split(' ')[0] : 'Unexplored'}
+        </p>
+      </div>
+
+      {/* Bottom badges */}
+      {tile.unlocked && (
+        <div className="flex justify-between items-center w-full text-[9px] sm:text-[10px] text-slate-400">
+          <span className="text-cyan-400 font-bold">{tile.qiDensity.toFixed(1)}x Qi</span>
+          <span className="text-red-400 font-bold">Lvl {tile.dangerLevel}</span>
+        </div>
+      )}
+
+      {/* Player Indicator Overlay */}
+      {isPlayerHere && (
+        <div className="absolute top-1 right-1 flex items-center justify-center bg-amber-500 rounded-full w-4 h-4 text-[10px] text-slate-950 font-extrabold animate-bounce shadow-md">
+          🧑‍🦯
+        </div>
+      )}
+    </button>
+  );
+});
+
+WorldTileButton.displayName = 'WorldTileButton';
+
 export const WorldGrid: React.FC<WorldGridProps> = ({
   tiles,
   player,
@@ -21,60 +133,14 @@ export const WorldGrid: React.FC<WorldGridProps> = ({
   onMovePlayer,
   onToggleSeal,
 }) => {
-  // Determine grid bounds
-  const maxX = Math.max(...tiles.map((t) => t.x));
-  const maxY = Math.max(...tiles.map((t) => t.y));
-  const gridDimension = maxX + 1;
-
-  const getTileBg = (tile: WorldTile, isPlayerHere: boolean) => {
-    if (tile.sealed) {
-      return 'bg-purple-950/80 border-purple-500/60 text-purple-200 animate-pulse';
+  // Determine grid bounds efficiently using useMemo
+  const gridDimension = React.useMemo(() => {
+    let maxX = 0;
+    for (let i = 0; i < tiles.length; i++) {
+      if (tiles[i].x > maxX) maxX = tiles[i].x;
     }
-    if (!tile.unlocked) {
-      return 'bg-slate-900 border-slate-800 opacity-60 text-slate-600';
-    }
-    if (isPlayerHere) {
-      return 'bg-amber-900/60 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400';
-    }
-
-    switch (tile.type) {
-      case 'Sect':
-        return 'bg-emerald-950/70 border-emerald-500/70 text-emerald-200 hover:bg-emerald-900/80';
-      case 'SpiritVein':
-        return 'bg-cyan-950/70 border-cyan-400/70 text-cyan-200 hover:bg-cyan-900/80';
-      case 'SecretRealm':
-        return 'bg-fuchsia-950/70 border-fuchsia-500/70 text-fuchsia-200 hover:bg-fuchsia-900/80';
-      case 'AuctionHouse':
-        return 'bg-amber-950/70 border-amber-500/70 text-amber-200 hover:bg-amber-900/80';
-      case 'AlchemistTower':
-        return 'bg-teal-950/70 border-teal-400/70 text-teal-200 hover:bg-teal-900/80';
-      case 'DemonForbiddenZone':
-        return 'bg-red-950/80 border-red-600/80 text-red-200 hover:bg-red-900/80';
-      default:
-        return 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700/80';
-    }
-  };
-
-  const getTileIcon = (type: WorldTile['type']) => {
-    switch (type) {
-      case 'Sect':
-        return '🏯';
-      case 'SpiritVein':
-        return '💎';
-      case 'SecretRealm':
-        return '🌀';
-      case 'AuctionHouse':
-        return '🏛️';
-      case 'AlchemistTower':
-        return '🧪';
-      case 'DemonForbiddenZone':
-        return '☠️';
-      case 'AncientRuins':
-        return '🏺';
-      default:
-        return '🌲';
-    }
-  };
+    return maxX + 1;
+  }, [tiles]);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 w-full max-w-7xl mx-auto p-4">
@@ -114,48 +180,13 @@ export const WorldGrid: React.FC<WorldGridProps> = ({
             const isSelected = selectedTile?.x === tile.x && selectedTile?.y === tile.y;
 
             return (
-              <button
+              <WorldTileButton
                 key={`${tile.x}-${tile.y}`}
-                onClick={() => onSelectTile(tile)}
-                className={`aspect-square p-1 sm:p-2 rounded-lg border text-left flex flex-col justify-between transition-all duration-200 relative group overflow-hidden ${getTileBg(
-                  tile,
-                  isPlayerHere
-                )} ${isSelected ? 'ring-2 ring-cyan-400 scale-[1.03] z-10' : ''}`}
-              >
-                {/* Top status bar */}
-                <div className="flex justify-between items-center w-full text-[10px] sm:text-xs font-mono">
-                  <span className="text-slate-400">
-                    {tile.x},{tile.y}
-                  </span>
-                  {tile.sealed && <Lock className="w-3 h-3 text-purple-400 animate-pulse" />}
-                  {!tile.unlocked && <Eye className="w-3 h-3 text-slate-600" />}
-                </div>
-
-                {/* Center Tile Emoji / Icon */}
-                <div className="my-auto text-center">
-                  <span className="text-2xl sm:text-3xl filter drop-shadow-md">
-                    {tile.unlocked ? getTileIcon(tile.type) : '🌫️'}
-                  </span>
-                  <p className="text-[10px] sm:text-xs font-semibold truncate mt-1">
-                    {tile.unlocked ? tile.name.split(' ')[0] : 'Unexplored'}
-                  </p>
-                </div>
-
-                {/* Bottom badges */}
-                {tile.unlocked && (
-                  <div className="flex justify-between items-center w-full text-[9px] sm:text-[10px] text-slate-400">
-                    <span className="text-cyan-400 font-bold">{tile.qiDensity.toFixed(1)}x Qi</span>
-                    <span className="text-red-400 font-bold">Lvl {tile.dangerLevel}</span>
-                  </div>
-                )}
-
-                {/* Player Indicator Overlay */}
-                {isPlayerHere && (
-                  <div className="absolute top-1 right-1 flex items-center justify-center bg-amber-500 rounded-full w-4 h-4 text-[10px] text-slate-950 font-extrabold animate-bounce shadow-md">
-                    🧑‍🦯
-                  </div>
-                )}
-              </button>
+                tile={tile}
+                isPlayerHere={isPlayerHere}
+                isSelected={isSelected}
+                onSelectTile={onSelectTile}
+              />
             );
           })}
         </div>
